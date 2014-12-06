@@ -3,3 +3,17 @@
 name = "duktape_sys"
 version = "0.0.1"
 authors = ["Eric Kidd <git@randomhacks.net>"]
+links = "duktape"
+build = "build.rs"
+
+description = "Unsafe, low-level wrapper for duktape JavaScript interpreter"
+license = "MIT"
+
+# Minimize distributed package size by excluding large, unused directories.
+exclude = [
+  "duktape/examples",
+  "duktape/src-separate"
+]
+
+[build-dependencies]
+gcc = "~0.0.1"

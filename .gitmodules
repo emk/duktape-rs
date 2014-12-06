@@ -1,0 +1,3 @@
+[submodule "duktape-releases"]
+	path = duktape_sys/duktape
+	url = https://github.com/svaarala/duktape-releases

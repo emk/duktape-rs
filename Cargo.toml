@@ -1,5 +1,11 @@
 [package]
 
-name = "duktape-rs"
+name = "duktape"
 version = "0.0.1"
 authors = ["Eric Kidd <git@randomhacks.net>"]
+
+description = "Embedded JavaScript interpreter with a small footprint"
+license = "MIT"
+
+[dependencies.duktape_sys]
+path = "duktape_sys"
