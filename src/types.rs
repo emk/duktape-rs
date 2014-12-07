@@ -1,5 +1,5 @@
 use libc::types::os::arch::c95::c_double;
-use std::str::MaybeOwned;
+use std::str::CowString;
 use std::error::Error;
 use std::result::Result;
 
@@ -12,11 +12,11 @@ pub enum Value<'a> {
     /// A JavaScript `null` value.
     Null,
     /// A JavaScript boolean value.
-    Boolean(bool),
+    Bool(bool),
     /// A JavaScript numeric value.
     Number(c_double),
     /// A JavaScript string value.
-    String(MaybeOwned<'a>)
+    String(CowString<'a>)
 }
 
 /// A duktape API error.
