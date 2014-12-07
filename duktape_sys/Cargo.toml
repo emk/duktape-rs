@@ -9,6 +9,8 @@ build = "build.rs"
 description = "Unsafe, low-level wrapper for duktape JavaScript interpreter"
 license = "MIT"
 
+repository = "https://github.com/emk/duktape-rs"
+
 # Minimize distributed package size by excluding large, unused directories.
 exclude = [
   "duktape/examples",
