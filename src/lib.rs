@@ -5,6 +5,7 @@
 #![warn(missing_docs)]
 
 extern crate libc;
+extern crate cesu8;
 extern crate "duktape_sys" as ffi;
 
 pub use types::*;

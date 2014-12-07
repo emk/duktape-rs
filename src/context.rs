@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::ptr::null_mut;
 use std::slice::from_raw_buf;
-use std::str::from_utf8;
+use cesu8::from_cesu8;
 use ffi::*;
 use types::*;
 
@@ -9,9 +9,11 @@ use types::*;
 unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
     DuktapeResult<String>
 {
-    match from_utf8(from_raw_buf(&(data as *const u8), len as uint)) {
-        None => Err(DuktapeError::from_str("can't convert string")),
-        Some(ref str) => Ok(str.to_string())
+    let ptr = data as *const u8;
+    let bytes = from_raw_buf(&ptr, len as uint);
+    match from_cesu8(bytes) {
+        Ok(str) => Ok(str.into_owned()),
+        Err(_) => Err(DuktapeError::from_str("can't convert string to UTF-8"))
     }
 }
 
@@ -106,7 +108,19 @@ fn test_eval() {
     assert_eq!(Value::Bool(false), ctx.eval("false").unwrap());
     assert_eq!(Value::Number(5.0), ctx.eval("2 + 3").unwrap());
     assert_eq!(Value::String(Cow::Borrowed("é")), ctx.eval("'é'").unwrap());
-    //assert_eq!(Value::String(Cow::Borrowed("𓀀")), ctx.eval("'𓀀'").unwrap());
+}
+
+#[test]
+fn test_unicode_supplementary_planes() {
+    // Pay careful attention to characters U+10000 and greater, because
+    // duktape uses CESU-8 internally, which isn't _quite_ valid UTF-8.
+    // This is thanks to the fact that JavaScript uses 16-bit characters
+    // and allows manipulating invalid UTF-16 data with mismatched
+    // surrogate pairs.
+    let mut ctx = Context::new().unwrap();
+    assert_eq!(Value::String(Cow::Borrowed("𓀀")), ctx.eval("'𓀀'").unwrap());
+    assert_eq!(Value::String(Cow::Borrowed("𓀀")),
+               ctx.eval("'\\uD80C\\uDC00'").unwrap());
 }
 
 #[test]
