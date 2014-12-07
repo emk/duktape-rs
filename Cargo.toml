@@ -6,8 +6,10 @@ authors = ["Eric Kidd <git@randomhacks.net>"]
 
 description = "Embedded JavaScript interpreter with a small footprint"
 license = "Unlicense"
+readme = "README.md"
 
 repository = "https://github.com/emk/duktape-rs"
+documentation = "http://www.rust-ci.org/emk/ducktape-rs/doc/ducktape/"
 
 [dependencies]
 cesu8 = "*"
