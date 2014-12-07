@@ -5,9 +5,12 @@ version = "0.0.1"
 authors = ["Eric Kidd <git@randomhacks.net>"]
 
 description = "Embedded JavaScript interpreter with a small footprint"
-license = "MIT"
+license = "Unlicense"
 
 repository = "https://github.com/emk/duktape-rs"
+
+[dependencies]
+cesu8 = "*"
 
 [dependencies.duktape_sys]
 path = "duktape_sys"
