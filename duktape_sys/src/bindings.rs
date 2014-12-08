@@ -4,40 +4,40 @@
 use generated::*;
 
 // Everything from here down is from bindgen, with uses of va_list
-// commented out.
+// commented out, and `extern "C"` replaced by `unsafe extern "C"`.
 pub type duk_context = ::libc::c_void;
 pub type duk_memory_functions = Struct_duk_memory_functions;
 pub type duk_function_list_entry = Struct_duk_function_list_entry;
 pub type duk_number_list_entry = Struct_duk_number_list_entry;
 pub type duk_c_function =
-    ::std::option::Option<extern "C" fn(arg1: *mut duk_context) -> duk_ret_t>;
+    ::std::option::Option<unsafe extern "C" fn(arg1: *mut duk_context) -> duk_ret_t>;
 pub type duk_alloc_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut ::libc::c_void, arg2: duk_size_t)
                               -> *mut ::libc::c_void>;
 pub type duk_realloc_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut ::libc::c_void,
                                arg2: *mut ::libc::c_void, arg3: duk_size_t)
                               -> *mut ::libc::c_void>;
 pub type duk_free_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut ::libc::c_void,
                                arg2: *mut ::libc::c_void)>;
 pub type duk_fatal_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut duk_context, arg2: duk_errcode_t,
                                arg3: *const ::libc::c_char)>;
 pub type duk_decode_char_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut ::libc::c_void,
                                arg2: duk_codepoint_t)>;
 pub type duk_map_char_function =
-    ::std::option::Option<extern "C" fn
+    ::std::option::Option<unsafe extern "C" fn
                               (arg1: *mut ::libc::c_void,
                                arg2: duk_codepoint_t) -> duk_codepoint_t>;
 pub type duk_safe_call_function =
-    ::std::option::Option<extern "C" fn(arg1: *mut duk_context) -> duk_ret_t>;
+    ::std::option::Option<unsafe extern "C" fn(arg1: *mut duk_context) -> duk_ret_t>;
 #[repr(C)]
 pub struct Struct_duk_memory_functions {
     pub alloc_func: duk_alloc_function,

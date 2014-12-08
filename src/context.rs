@@ -1,6 +1,8 @@
 use std::borrow::Cow;
+use std::mem::transmute;
 use std::ptr::null_mut;
 use std::slice::from_raw_buf;
+use libc::c_void;
 use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
 use types::*;
@@ -30,10 +32,18 @@ unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
     }
 }
 
+/// A "internal" property key used for storing Rust function pointers, which
+/// can't be accessed from JavaScript without a lot of trickery.
+const RUST_FN_PROP: [i8, ..5] = [-1, 'r' as i8, 'f' as i8, 'n' as i8, 0];
+
+/// A Rust callback which can be invoked from JavaScript.
+pub type Callback = fn (&mut Context, &[Value<'static>]) -> Value<'static>;
+
 /// A duktape interpreter context.  An individual context is not
 /// re-entrant: You may only access it from one thread at a time.
 pub struct Context {
-    ptr: *mut duk_context
+    ptr: *mut duk_context,
+    owned: bool
 }
 
 impl Context {
@@ -45,7 +55,7 @@ impl Context {
         if ptr.is_null() {
             Err(DuktapeError::from_str("Could not create heap"))
         } else {
-            Ok(Context{ptr: ptr})
+            Ok(Context{ptr: ptr, owned: true})
         }
     }
 
@@ -172,12 +182,85 @@ impl Context {
             })
         }
     }
+
+    /// Register a Rust callback as a global JavaScript function.
+    pub fn register(&mut self, fn_name: &str, f: Callback,
+                    arg_count: Option<u16>) {
+        let c_arg_count =
+            arg_count.map(|n| n as duk_int_t).unwrap_or(DUK_VARARGS);
+        unsafe {
+            assert_stack_height_unchanged!(self, {
+                // Push our global context and a pointer to our standard
+                // wrapper function.
+                duk_push_global_object(self.ptr);
+                duk_push_c_function(self.ptr,
+                                    Some(rust_duk_callback),
+                                    c_arg_count);
+
+                // Store `f` as a hidden property in our function.
+                duk_push_pointer(self.ptr, f as *mut c_void);
+                duk_put_prop_string(self.ptr, -2, RUST_FN_PROP.as_ptr());
+
+                // Store our function in a global property.
+                fn_name.with_c_str(|c_str| {
+                    duk_put_prop_string(self.ptr, -2, c_str);
+                });
+                duk_pop(self.ptr);
+            })
+        }
+    }
 }
 
 impl Drop for Context {
   fn drop(&mut self) {
-      unsafe { duk_destroy_heap(self.ptr); }
+      if self.owned {
+          unsafe { duk_destroy_heap(self.ptr); }
+      }
   }
+}
+
+/// Our generic callback function.
+unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
+    // ERROR-HANDLING NOTE: Try to avoid any Rust panics or duktape unwinds
+    // inside this function.  They sort-of work--at least well enough to
+    // debug this crate--but they probably corrupt at least one of the two
+    // heaps.
+
+    // Here, we create a mutable Context pointing into an existing duktape
+    // heap.  But this is theoretically safe, because the only way to
+    // invoke JavaScript code is to use a mutable context while calling
+    // into C.  So this is really an indirect mutable borrow.
+    assert!(ctx != null_mut());
+    let mut ctx = Context{ptr: ctx, owned: false};
+    //println!("In callback: {}", ctx.dump_context());
+
+    // Recover our Rust function pointer.
+    let f: Callback = assert_stack_height_unchanged!(ctx, {
+        duk_push_current_function(ctx.ptr);
+        duk_get_prop_string(ctx.ptr, -1, RUST_FN_PROP.as_ptr());
+        let p = duk_get_pointer(ctx.ptr, -1);
+        duk_pop_n(ctx.ptr, 2);
+        assert!(p != null_mut());
+        transmute(p)
+    });
+
+    // Coerce our arguments to Rust values.
+    let arg_count = duk_get_top(ctx.ptr) as uint;
+    let mut args = Vec::with_capacity(arg_count);
+    for i in range(0, arg_count) {
+        match ctx.get(i as duk_idx_t) {
+            Ok(arg) => args.push(arg),
+            // Can't convert argument to Rust.
+            // TODO: Need testcase.
+            Err(_) => return DUK_RET_TYPE_ERROR
+        }
+    }
+    //println!("args: {}", args);
+
+    // Return our result.
+    let result = f(&mut ctx, args.as_slice());
+    ctx.push(&result);
+    return 1;
 }
 
 #[test]
@@ -230,5 +313,29 @@ fn test_call_function_by_name() {
                ctx.call("id", &[Value::String(Cow::Borrowed("é"))]));
 }
 
-//let args = vec!(Value::Number(2.0), Value::Number(3.0));
-//let code = "function sum(x, y) { return x+y; }"
+#[cfg(test)]
+#[allow(missing_docs)]
+mod test {
+    use types::*;
+    use super::*;
+
+    pub fn rust_add(_ctx: &mut Context, args: &[Value<'static>]) -> 
+        Value<'static> // TODO: Better return value options.
+    {
+        let mut sum = 0.0;
+        for arg in args.iter() {
+            // TODO: Type checking.
+            if let &Value::Number(n) = arg {
+                sum += n;
+            }
+        }
+        Value::Number(sum)
+    }
+}
+
+#[test]
+fn test_callbacks() {
+    let mut ctx = Context::new().unwrap();
+    ctx.register("add", test::rust_add, Some(2));
+    assert_eq!(Value::Number(5.0), ctx.eval("add(2.0, 3.0)").unwrap());
+}
