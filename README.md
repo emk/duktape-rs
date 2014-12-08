@@ -10,5 +10,5 @@ A Rust wrapper for [Duktape](http://duktape.org/).  Things to do before
 this is minimally useful:
 
 - [x] Handle non-UTF-8 strings.
-- [ ] Call JavaScript functions by name.
+- [x] Call JavaScript functions by name.
 - [ ] Define functions.

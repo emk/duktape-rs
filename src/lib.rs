@@ -2,6 +2,7 @@
 
 #![experimental]
 #![feature(globs)]
+#![feature(macro_rules)]
 #![warn(missing_docs)]
 
 extern crate libc;

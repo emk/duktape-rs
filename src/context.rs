@@ -1,9 +1,22 @@
 use std::borrow::Cow;
 use std::ptr::null_mut;
 use std::slice::from_raw_buf;
-use cesu8::from_cesu8;
+use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
 use types::*;
+
+/// To avoid massive debugging frustration, wrap stack manipulation code in
+/// this macro.
+macro_rules! assert_stack_height_unchanged {
+    ($ctx:ident, $body:block) => {
+        {
+            let initial_stack_height = duk_get_top($ctx.ptr);
+            let result = $body;
+            assert_eq!(initial_stack_height, duk_get_top($ctx.ptr));
+            result
+        }
+    }
+}
 
 /// Convert a duktape-format string into a Rust `String`.
 unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
@@ -36,10 +49,24 @@ impl Context {
         }
     }
 
+    /// Debugging: Dump the interpreter context.
+    #[allow(dead_code)]
+    fn dump_context(&mut self) -> String {
+        unsafe {
+            duk_push_context_dump(self.ptr);
+            let mut len: duk_size_t = 0;
+            let str = duk_safe_to_lstring(self.ptr, -1, &mut len);
+            let result = from_lstring(str, len)
+                .unwrap_or_else(|_| "Couldn't dump context".to_string());
+            duk_pop(self.ptr);
+            result
+        }
+    }
+
     /// Get the specified value from our context, and convert it to a Rust
     /// type.  This is a low-level, unsafe function, and you won't normally
     /// need to call it.
-    unsafe fn get(&mut self, idx: duk_idx_t) -> DuktapeResult<Value> {
+    unsafe fn get(&mut self, idx: duk_idx_t) -> DuktapeResult<Value<'static>> {
         match duk_get_type(self.ptr, idx) {
             DUK_TYPE_UNDEFINED => Ok(Value::Undefined),
             DUK_TYPE_NULL => Ok(Value::Null),
@@ -59,36 +86,90 @@ impl Context {
         }
     }
 
+    /// Push a value to the call stack.
+    unsafe fn push(&mut self, val: &Value) {
+        match val {
+            &Value::Undefined => duk_push_undefined(self.ptr),
+            &Value::Null => duk_push_null(self.ptr),
+            &Value::Bool(v) => duk_push_boolean(self.ptr, if v { 1 } else { 0 }),
+            &Value::Number(v) => duk_push_number(self.ptr, v),
+            &Value::String(ref v) => {
+                let encoded = to_cesu8(v.deref());
+                let buf = encoded.deref();
+                duk_push_lstring(self.ptr, buf.as_ptr() as *const i8,
+                                 buf.len() as duk_size_t);
+            }
+        }
+    }
+
+    /// Interpret the value on the top of the stack as either a return
+    /// value or an error, depending on the value of `status`.
+    unsafe fn get_result(&mut self, status: duk_int_t) ->
+        DuktapeResult<Value<'static>>
+    {
+        if status == DUK_EXEC_SUCCESS {
+            self.get(-1)
+        } else {
+            let mut len: duk_size_t = 0;
+            let str = duk_safe_to_lstring(self.ptr, -1, &mut len);
+            let msg = try!(from_lstring(str, len));
+            Err(DuktapeError::from_str(msg.as_slice()))
+        }
+    }
+
+    /// Given the status code returned by a duktape exec function, pop
+    /// either a value or an error from the stack, convert it, and return
+    /// it.
+    unsafe fn pop_result(&mut self, status: duk_int_t) ->
+        DuktapeResult<Value<'static>>
+    {
+        let result = self.get_result(status);
+        duk_pop(self.ptr);
+        result
+    }
+
     /// Evaluate JavaScript source code and return the result.
-    pub fn eval(&mut self, code: &str) -> DuktapeResult<Value> {
+    pub fn eval(&mut self, code: &str) -> DuktapeResult<Value<'static>> {
         self.eval_from("<eval>", code)
     }
 
     /// Evaluate JavaScript source code and return the result.  The
     /// `filename` parameter will be used in any error messages.
     pub fn eval_from(&mut self, filename: &str, code: &str) ->
-        DuktapeResult<Value>
+        DuktapeResult<Value<'static>>
     {
         unsafe {
-            // Push our filename parameter and evaluate our code.
-            duk_push_lstring(self.ptr, filename.as_ptr() as *const i8,
-                                    filename.len() as duk_size_t);
-            let result =
-                duk_eval_raw(self.ptr, code.as_ptr() as *const i8,
-                             code.len() as duk_size_t,
-                             DUK_COMPILE_EVAL |
-                             DUK_COMPILE_NOSOURCE |
-                             DUK_COMPILE_SAFE);
+            assert_stack_height_unchanged!(self, {
+                // Push our filename parameter and evaluate our code.
+                duk_push_lstring(self.ptr, filename.as_ptr() as *const i8,
+                                 filename.len() as duk_size_t);
+                let status = duk_eval_raw(self.ptr, code.as_ptr() as *const i8,
+                                          code.len() as duk_size_t,
+                                          DUK_COMPILE_EVAL |
+                                          DUK_COMPILE_NOSOURCE |
+                                          DUK_COMPILE_SAFE);
+                self.pop_result(status)
+            })
+        }
+    }
 
-            // Convert our result to a Rust value.
-            if result == DUK_EXEC_SUCCESS {
-                self.get(-1)
-            } else {
-                let mut len: duk_size_t = 0;
-                let str = duk_safe_to_lstring(self.ptr, -1, &mut len);
-                let msg = try!(from_lstring(str, len));
-                Err(DuktapeError::from_str(msg.as_slice()))
-            }
+    /// Call the global JavaScript function named `fn_name` with `args`, and
+    /// return the result.
+    pub fn call(&mut self, fn_name: &str, args: &[Value]) -> 
+        DuktapeResult<Value<'static>>
+    {
+        unsafe {
+            assert_stack_height_unchanged!(self, {
+                duk_push_global_object(self.ptr);
+                fn_name.with_c_str(|c_str| {
+                    duk_get_prop_string(self.ptr, -1, c_str);
+                });
+                for arg in args.iter() { self.push(arg); }
+                let status = duk_pcall(self.ptr, args.len() as i32);
+                let result = self.pop_result(status);
+                duk_pop(self.ptr); // Remove global object.
+                result
+            })
         }
     }
 }
@@ -121,12 +202,32 @@ fn test_unicode_supplementary_planes() {
     assert_eq!(Value::String(Cow::Borrowed("𓀀")), ctx.eval("'𓀀'").unwrap());
     assert_eq!(Value::String(Cow::Borrowed("𓀀")),
                ctx.eval("'\\uD80C\\uDC00'").unwrap());
+
+    ctx.eval("function id(x) { return x; }").unwrap();
+    assert_eq!(Ok(Value::String(Cow::Borrowed("𓀀"))),
+               ctx.call("id", &[Value::String(Cow::Borrowed("𓀀"))]));
 }
 
 #[test]
 fn test_eval_errors() {
     let mut ctx = Context::new().unwrap();
     assert_eq!(true, ctx.eval("3 +").is_err());
+}
+
+#[test]
+fn test_call_function_by_name() {
+    let mut ctx = Context::new().unwrap();
+    ctx.eval("function add(x, y) { return x+y; }").unwrap();
+    assert_eq!(Ok(Value::Number(3.0)),
+               ctx.call("add", &[Value::Number(2.0), Value::Number(1.0)]));
+
+    ctx.eval("function id(x) { return x; }").unwrap();
+    assert_eq!(Ok(Value::Undefined),   ctx.call("id", &[Value::Undefined]));
+    assert_eq!(Ok(Value::Bool(true)),  ctx.call("id", &[Value::Bool(true)]));
+    assert_eq!(Ok(Value::Bool(false)), ctx.call("id", &[Value::Bool(false)]));
+    assert_eq!(Ok(Value::Number(1.5)), ctx.call("id", &[Value::Number(1.5)]));
+    assert_eq!(Ok(Value::String(Cow::Borrowed("é"))),
+               ctx.call("id", &[Value::String(Cow::Borrowed("é"))]));
 }
 
 //let args = vec!(Value::Number(2.0), Value::Number(3.0));

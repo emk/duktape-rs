@@ -20,7 +20,7 @@ pub enum Value<'a> {
 }
 
 /// A duktape API error.
-#[deriving(Show)]
+#[deriving(Show, PartialEq)]
 pub struct DuktapeError {
     // These have some sort of internal structure, but the duktape
     // documentation always just converts them to strings.  So that's all
