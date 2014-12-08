@@ -2,7 +2,7 @@
 
 [Documentation][apidoc].
 
-[apidoc]: http://www.rust-ci.org/emk/ducktape-rs/doc/ducktape/
+[apidoc]: http://www.rust-ci.org/emk/ducktape-rs/doc/duktape/
 
 WORK IN PROGRESS.
 
