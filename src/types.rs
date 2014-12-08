@@ -42,5 +42,5 @@ impl Error for DuktapeError {
     fn cause(&self) -> Option<&Error> { None }
 }
 
-/// Either a return value of type `T`, or a tuktape error.
+/// Either a return value of type `T`, or a duktape error.
 pub type DuktapeResult<T> = Result<T, DuktapeError>;
