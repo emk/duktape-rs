@@ -1,4 +1,5 @@
-//! Rust interface to Duktape JavaScript interpreter.
+//! Rust interface to [Duktape][] JavaScript interpreter.  This is still
+//! a work in progress!
 //!
 //! ```
 //! use duktape::{Context,Value,DuktapeResult};
@@ -19,7 +20,9 @@
 //! ```
 //!
 //! We also have preliminary support for defining JavaScript functions
-//! using Rust, but it's still to ugly to show off.
+//! using Rust, but it's still too ugly to show off.
+//!
+//! [Duktape]: http://duktape.org/
 
 #![experimental]
 #![feature(globs)]
