@@ -1,6 +1,8 @@
 //! Rust interface to [Duktape][] JavaScript interpreter.  This is still
 //! a work in progress!
 //!
+//! [Source code](https://github.com/emk/duktape-rs).
+//!
 //! ```
 //! use duktape::{Context,Value,DuktapeResult};
 //!
