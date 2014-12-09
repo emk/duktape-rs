@@ -13,5 +13,5 @@ fn main() {
     gcc::compile_library("libduktape.a", &gcc::Config {
         include_directories: vec!(Path::new("duktape/src")),
         .. Default::default()
-    }, &["duktape/src/duktape.c"]);
+    }, &["duktape/src/duktape.c", "src/glue.c"]);
 }

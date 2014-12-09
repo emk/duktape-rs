@@ -16,9 +16,11 @@ extern crate libc;
 
 pub use generated::*;
 pub use bindings::*;
+pub use glue::*;
 
 mod generated;
 mod bindings;
+mod glue;
 
 #[test]
 fn test_eval() {

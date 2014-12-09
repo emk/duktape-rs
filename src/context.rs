@@ -1,3 +1,4 @@
+
 use std::borrow::Cow;
 use std::mem::transmute;
 use std::ptr::null_mut;
@@ -37,7 +38,8 @@ unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
 const RUST_FN_PROP: [i8, ..5] = [-1, 'r' as i8, 'f' as i8, 'n' as i8, 0];
 
 /// A Rust callback which can be invoked from JavaScript.
-pub type Callback = fn (&mut Context, &[Value<'static>]) -> Value<'static>;
+pub type Callback = fn (&mut Context, &[Value<'static>]) ->
+    DuktapeResult<Value<'static>>;
 
 /// A duktape interpreter context.  An individual context is not
 /// re-entrant: You may only access it from one thread at a time.
@@ -258,9 +260,35 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
     //println!("args: {}", args);
 
     // Return our result.
-    let result = f(&mut ctx, args.as_slice());
-    ctx.push(&result);
-    return 1;
+    match f(&mut ctx, args.as_slice()) {
+        // No return value.
+        Ok(Value::Undefined) => { 0 }
+        // A single return value.
+        Ok(ref val) => { ctx.push(val); 1 }
+        Err(ref err) => {
+            let code = err_code(err) as duk_int_t;
+            match err_message(err) {
+                // An error with an actual error message.
+                &Some(ref _msg) => {
+                    // The following would more-or-less work, but it
+                    // performs a non-local exit from a Rust function using
+                    // C APIs, which is a Bad Idea.
+                    //to_cesu8(msg.as_slice()).with_c_str(|c_str| {
+                    //    duk_push_error_object_string(ctx.ptr, code,
+                    //                                 file!().as_ptr()
+                    //                                     as *const i8,
+                    //                                 line!() as i32,
+                    //                                 c_str as *const i8);
+                    //});
+                    //duk_throw(ctx.ptr);
+                    //-1
+                    DUK_RET_ERROR
+                }
+                // A generic error using one of the standard codes.
+                &None => { -code }
+            }
+        }
+    }
 }
 
 #[test]
@@ -320,7 +348,7 @@ mod test {
     use super::*;
 
     pub fn rust_add(_ctx: &mut Context, args: &[Value<'static>]) -> 
-        Value<'static> // TODO: Better return value options.
+        DuktapeResult<Value<'static>>
     {
         let mut sum = 0.0;
         for arg in args.iter() {
@@ -329,13 +357,48 @@ mod test {
                 sum += n;
             }
         }
-        Value::Number(sum)
+        Ok(Value::Number(sum))
     }
+
+    macro_rules! rust_callback {
+        ($name:ident, $retval:expr) => {
+            pub fn $name(_ctx: &mut Context, _args: &[Value<'static>]) ->
+                DuktapeResult<Value<'static>>
+            {
+                $retval
+            }
+        }
+    }
+
+    rust_callback!{rust_return_undefined, Ok(Value::Undefined)}
+    rust_callback!{rust_return_simple_error,
+                   Err(DuktapeError::from_code(ErrorCode::Type))}
+    rust_callback!{rust_return_custom_error,
+                   Err(DuktapeError::from_str("custom error"))}
 }
 
 #[test]
 fn test_callbacks() {
+    use std::error::Error;
+
     let mut ctx = Context::new().unwrap();
+
+    // An ordinary function, with arguments and a useful return value.
     ctx.register("add", test::rust_add, Some(2));
     assert_eq!(Value::Number(5.0), ctx.eval("add(2.0, 3.0)").unwrap());
+
+    // A funtion which returns `undefined` (the same as having no return
+    // value).
+    ctx.register("ret_undefined", test::rust_return_undefined, Some(0));
+    assert_eq!(Value::Undefined, ctx.eval("ret_undefined()").unwrap());
+
+    // A function which returns a numeric error code (special-cased in
+    // duktape).
+    ctx.register("simple_error", test::rust_return_simple_error, Some(0));
+    assert!(ctx.eval("simple_error()").is_err());
+
+    // A function which returns a custom error with a string.
+    ctx.register("custom_error", test::rust_return_custom_error, Some(0));
+    let res = ctx.eval("custom_error()");
+    assert!(res.is_err());
 }

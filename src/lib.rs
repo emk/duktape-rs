@@ -29,13 +29,15 @@
 #![experimental]
 #![feature(globs)]
 #![feature(macro_rules)]
+#![feature(phase)]
 #![warn(missing_docs)]
 
+#[phase(plugin, link)] extern crate log;
 extern crate libc;
 extern crate cesu8;
 extern crate "duktape_sys" as ffi;
 
-pub use types::{Value, DuktapeError, DuktapeResult};
+pub use types::{Value, ErrorCode, DuktapeError, DuktapeResult};
 pub use context::{Context, Callback};
 
 mod types;
