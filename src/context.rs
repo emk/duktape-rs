@@ -259,8 +259,14 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
     }
     //println!("args: {}", args);
 
+    // Call our function.
+    let result =
+        abort_on_panic!("unexpected panic in code called from JavaScript", {
+            f(&mut ctx, args.as_slice())  
+        });
+
     // Return our result.
-    match f(&mut ctx, args.as_slice()) {
+    match result {
         // No return value.
         Ok(Value::Undefined) => { 0 }
         // A single return value.
@@ -379,8 +385,6 @@ mod test {
 
 #[test]
 fn test_callbacks() {
-    use std::error::Error;
-
     let mut ctx = Context::new().unwrap();
 
     // An ordinary function, with arguments and a useful return value.

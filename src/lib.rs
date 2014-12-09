@@ -35,6 +35,7 @@
 #[phase(plugin, link)] extern crate log;
 extern crate libc;
 extern crate cesu8;
+#[phase(plugin, link)] extern crate abort_on_panic;
 extern crate "duktape_sys" as ffi;
 
 pub use types::{Value, ErrorCode, DuktapeError, DuktapeResult};
