@@ -7,7 +7,8 @@ use serialize::Encodable;
 use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
 use errors::*;
-use types::{Value, Encoder};
+use types::Value;
+use encoder::Encoder;
 
 /// To avoid massive debugging frustration, wrap stack manipulation code in
 /// this macro.
