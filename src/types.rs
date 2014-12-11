@@ -1,4 +1,5 @@
 use libc::types::os::arch::c95::c_double;
+use std::ptr::null_mut;
 use std::str::CowString;
 use cesu8::to_cesu8;
 use ffi::*;
@@ -37,7 +38,8 @@ type EncodeResult = DuktapeResult<()>;
 
 impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     fn emit_nil(&mut self) -> EncodeResult {
-        unsafe { duk_push_null(self.ctx.as_mut_ptr()) }; Ok(())
+        unsafe { duk_push_null(self.ctx.as_mut_ptr()); }
+        Ok(())
     }
 
     // Integral types map to floats.
@@ -82,8 +84,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         f(self)
     }
 
-    #[allow(unused_variables)]
-    fn emit_enum_variant(&mut self, v_name: &str, v_id: uint,
+    fn emit_enum_variant(&mut self, v_name: &str, _v_id: uint,
                          len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
@@ -105,7 +106,6 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         }
     }
 
-    #[allow(unused_variables)]
     fn emit_enum_variant_arg(&mut self, a_idx: uint,
                              f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
@@ -135,18 +135,14 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         unimplemented!()
     }
 
-    #[allow(unused_variables)]
-    fn emit_struct(&mut self, name: &str, len: uint,
+    fn emit_struct(&mut self, _name: &str, _len: uint,
                    f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
-        unsafe {
-            duk_push_object(self.ctx.as_mut_ptr());
-        }
+        unsafe { duk_push_object(self.ctx.as_mut_ptr()); }
         f(self)
     }
 
-    #[allow(unused_variables)]
-    fn emit_struct_field(&mut self, f_name: &str, f_idx: uint,
+    fn emit_struct_field(&mut self, f_name: &str, _f_idx: uint,
                          f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
         self.emit_str(f_name).unwrap();
@@ -155,24 +151,23 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         Ok(())
     }
 
-    #[allow(unused_variables)]
     fn emit_tuple(&mut self, len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
-        unimplemented!()
+        self.emit_seq(len, f)
     }
 
-    #[allow(unused_variables)]
     fn emit_tuple_arg(&mut self, idx: uint,
                       f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
-        unimplemented!()
+        self.emit_seq_elt(idx, f)
     }
 
     #[allow(unused_variables)]
     fn emit_tuple_struct(&mut self, name: &str, len: uint,
                          f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
+        // TODO: Not currently used.
         unimplemented!()
     }
 
@@ -181,74 +176,76 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
                              f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
+        // TODO: Not currently used.
         unimplemented!()
     }
 
-    #[allow(unused_variables)]
     fn emit_option(&mut self, f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
-        unimplemented!()
+        f(self)
     }
 
-    #[allow(unused_variables)]
     fn emit_option_none(&mut self) -> EncodeResult
     {
-        unimplemented!()
+        self.emit_nil()
     }
 
-    #[allow(unused_variables)]
     fn emit_option_some(&mut self, f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
-        unimplemented!()
+        f(self)
     }
 
-    #[allow(unused_variables)]
-    fn emit_seq(&mut self, len: uint, f: |this: &mut Encoder<'a>| ->
+    fn emit_seq(&mut self, _len: uint, f: |this: &mut Encoder<'a>| ->
                 EncodeResult) -> EncodeResult
     {
-        unimplemented!()
+        unsafe { duk_push_array(self.ctx.as_mut_ptr()); }
+        f(self)
     }
 
-    #[allow(unused_variables)]
     fn emit_seq_elt(&mut self, idx: uint,
                     f: |this: &mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
-        unimplemented!()
+        f(self).unwrap();
+        unsafe { duk_put_prop_index(self.ctx.as_mut_ptr(), -2, idx as u32); }
+        Ok(())
     }
 
-    #[allow(unused_variables)]
-    fn emit_map(&mut self, len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
+    fn emit_map(&mut self, _len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
         EncodeResult
     {
-        unimplemented!()
+        unsafe { duk_push_object(self.ctx.as_mut_ptr()); }
+        f(self)
     }
 
-    #[allow(unused_variables)]
-    fn emit_map_elt_key(&mut self, idx: uint,
+    fn emit_map_elt_key(&mut self, _idx: uint,
                         f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
-        unimplemented!()
+        f(self).unwrap();
+        unsafe { duk_safe_to_lstring(self.ctx.as_mut_ptr(), -1, null_mut()); }
+        Ok(())
     }
 
-    #[allow(unused_variables)]
-    fn emit_map_elt_val(&mut self, idx: uint,
+    fn emit_map_elt_val(&mut self, _idx: uint,
                         f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
     {
-        unimplemented!()
+        f(self).unwrap();
+        unsafe { duk_put_prop(self.ctx.as_mut_ptr(), -3); }
+        Ok(())
     }
 }
 
 #[test]
 fn test_encoder() {
     use std::borrow::Cow;
+    use std::collections::HashMap;
 
     let mut ctx = Context::new().unwrap();
     ctx.eval(r"
 function assert_json(expected, value) {
     var value_json = JSON.stringify(value);
-    print('checking', expected, value_json);
+    //print('checking', expected, value_json);
     return expected == value_json || value_json;
 }").unwrap();
 
@@ -317,4 +314,29 @@ function assert_json(expected, value) {
     #[deriving(Encodable)]
     struct ExStruct { x: f64, y: f64 }
     assert_encode!(&ExStruct{x: 1.0, y: 2.0});
+
+    // Tuples.
+    assert_encode!(&(1u, 2u));
+
+    // Tuple structs.
+    #[deriving(Encodable)]
+    struct ExTupleStruct(f64);
+    assert_encode!(&ExTupleStruct(1.0));
+
+    // Options.
+    let none_f64: Option<f64> = None;
+    assert_encode!(&none_f64);
+    assert_encode!(&Some(1.0f64));
+
+    // Sequences.
+    let seq = [1.0f64];
+    assert_encode!(seq.as_slice());
+
+    // Maps.
+    let mut hash: HashMap<String,int> = HashMap::new();
+    hash.insert("test".to_string(), 3);
+    assert_encode!(&hash);    
+    let mut hash2: HashMap<int,int> = HashMap::new();
+    hash2.insert(7, 3);
+    assert_encode!(&hash2);    
 }
