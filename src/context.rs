@@ -1,12 +1,13 @@
-
 use std::borrow::Cow;
 use std::mem::transmute;
 use std::ptr::null_mut;
 use std::slice::from_raw_buf;
 use libc::c_void;
+use serialize::Encodable;
 use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
-use types::*;
+use errors::*;
+use types::{Value, Encoder};
 
 /// To avoid massive debugging frustration, wrap stack manipulation code in
 /// this macro.
@@ -61,6 +62,10 @@ impl Context {
         }
     }
 
+    /// Get the underlying context pointer.  You generally don't need this
+    /// unless you're implementing low-level add-ons to this library.
+    pub unsafe fn as_mut_ptr(&mut self) -> *mut duk_context { self.ptr }
+
     /// Debugging: Dump the interpreter context.
     #[allow(dead_code)]
     fn dump_context(&mut self) -> String {
@@ -99,7 +104,7 @@ impl Context {
     }
 
     /// Push a value to the call stack.
-    unsafe fn push(&mut self, val: &Value) {
+    pub unsafe fn push(&mut self, val: &Value) {
         match val {
             &Value::Undefined => duk_push_undefined(self.ptr),
             &Value::Null => duk_push_null(self.ptr),
@@ -113,6 +118,16 @@ impl Context {
             }
         }
     }
+
+    /// Push an encodable value onto the call stack.  This will replace
+    /// `push`.
+    pub unsafe fn push2<'a, T, E>(&'a mut self, object: &T)
+        where E: ::serialize::Encoder<DuktapeError>,
+              T: ::serialize::Encodable<Encoder<'a>, DuktapeError>
+    {
+        let mut encoder = Encoder::new(self);
+        object.encode(&mut encoder).unwrap();
+    }        
 
     /// Interpret the value on the top of the stack as either a return
     /// value or an error, depending on the value of `status`.
@@ -132,7 +147,7 @@ impl Context {
     /// Given the status code returned by a duktape exec function, pop
     /// either a value or an error from the stack, convert it, and return
     /// it.
-    unsafe fn pop_result(&mut self, status: duk_int_t) ->
+    pub unsafe fn pop_result(&mut self, status: duk_int_t) ->
         DuktapeResult<Value<'static>>
     {
         let result = self.get_result(status);
@@ -350,6 +365,7 @@ fn test_call_function_by_name() {
 #[cfg(test)]
 #[allow(missing_docs)]
 mod test {
+    use errors::*;
     use types::*;
     use super::*;
 

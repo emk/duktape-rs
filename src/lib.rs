@@ -33,13 +33,16 @@
 #![warn(missing_docs)]
 
 #[phase(plugin, link)] extern crate log;
+extern crate serialize;
 extern crate libc;
 extern crate cesu8;
 #[phase(plugin, link)] extern crate abort_on_panic;
 extern crate "duktape_sys" as ffi;
 
-pub use types::{Value, ErrorCode, DuktapeError, DuktapeResult};
+pub use errors::{ErrorCode, DuktapeError, DuktapeResult};
+pub use types::Value;
 pub use context::{Context, Callback};
 
+mod errors;
 mod types;
 mod context;
