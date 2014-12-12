@@ -233,7 +233,7 @@ fn test_encoder() {
 function assert_json(expected, value) {
     var value_json = JSON.stringify(value);
     //print('checking', expected, value_json);
-    return expected == value_json || value_json;
+    return JSON.stringify(JSON.parse(expected)) == value_json || value_json;
 }").unwrap();
 
     unsafe fn assert_json_setup(ctx: &mut Context, expected: &str) {

@@ -5,7 +5,7 @@ use ffi::*;
 /// These are the standard error codes, which make it easy to return
 /// pre-defined errors from duktape functions implemented in Rust.
 #[allow(missing_docs)]
-#[deriving(Show, PartialEq, Eq)]
+#[deriving(Copy, Show, PartialEq, Eq)]
 #[repr(i32)]
 pub enum ErrorCode {
     Unimplemented = DUK_ERR_UNIMPLEMENTED_ERROR,
