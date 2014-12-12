@@ -5,20 +5,25 @@ use errors::*;
 use context::Context;
 
 /// Translates Rust values into JavaScript values.
-pub struct Encoder<'a> {
-    ctx: &'a mut Context
+pub struct Encoder {
+    /// An internal `Context` object, for convenience.  We own this,
+    /// because if we use a reference to somebody else's, the lifetimes
+    /// make it very hard to work with &Encodable references.
+    ctx: Context
 }
 
-impl<'a> Encoder<'a> {
-    /// Create a new encoder which pushes values to the stack of a `Context`.
-    pub unsafe fn new(ctx: &mut Context) -> Encoder {
-        Encoder{ctx: ctx}
+impl Encoder {
+    /// Create a new encoder which pushes values to `ctx`.  If you create
+    /// one of these, you're responsible for making sure it gets used
+    /// safely.
+    pub unsafe fn new(ctx: *mut duk_context) -> Encoder {
+        Encoder{ctx: Context::from_borrowed_mut_ptr(ctx)}
     }
 }
 
 type EncodeResult = DuktapeResult<()>;
 
-impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
+impl<'a> ::serialize::Encoder<DuktapeError> for Encoder {
     fn emit_nil(&mut self) -> EncodeResult {
         unsafe { duk_push_null(self.ctx.as_mut_ptr()); }
         Ok(())
@@ -61,13 +66,13 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_enum(&mut self, _name: &str,
-                 f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                 f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         f(self)
     }
 
     fn emit_enum_variant(&mut self, v_name: &str, _v_id: uint,
-                         len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
+                         len: uint, f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         if len == 0 {
@@ -89,7 +94,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_enum_variant_arg(&mut self, a_idx: uint,
-                             f: |&mut Encoder<'a>| -> EncodeResult) ->
+                             f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         unsafe {
@@ -101,7 +106,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
 
     #[allow(unused_variables)]
     fn emit_enum_struct_variant(&mut self, v_name: &str, v_id: uint, len: uint,
-                                f: |&mut Encoder<'a>| -> EncodeResult) ->
+                                f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         // TODO: Not called during normal serialization.
@@ -110,7 +115,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
 
     #[allow(unused_variables)]
     fn emit_enum_struct_variant_field(&mut self, f_name: &str, f_idx: uint,
-                                      f: |&mut Encoder<'a>| -> EncodeResult) ->
+                                      f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         // TODO: Not called during normal serialization.
@@ -118,14 +123,14 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_struct(&mut self, _name: &str, _len: uint,
-                   f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                   f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         unsafe { duk_push_object(self.ctx.as_mut_ptr()); }
         f(self)
     }
 
     fn emit_struct_field(&mut self, f_name: &str, _f_idx: uint,
-                         f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                         f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         self.emit_str(f_name).unwrap();
         f(self).unwrap();
@@ -133,21 +138,21 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         Ok(())
     }
 
-    fn emit_tuple(&mut self, len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
+    fn emit_tuple(&mut self, len: uint, f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         self.emit_seq(len, f)
     }
 
     fn emit_tuple_arg(&mut self, idx: uint,
-                      f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                      f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         self.emit_seq_elt(idx, f)
     }
 
     #[allow(unused_variables)]
     fn emit_tuple_struct(&mut self, name: &str, len: uint,
-                         f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                         f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         // TODO: Not currently used.
         unimplemented!()
@@ -155,14 +160,14 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
 
     #[allow(unused_variables)]
     fn emit_tuple_struct_arg(&mut self, f_idx: uint,
-                             f: |&mut Encoder<'a>| -> EncodeResult) ->
+                             f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         // TODO: Not currently used.
         unimplemented!()
     }
 
-    fn emit_option(&mut self, f: |&mut Encoder<'a>| -> EncodeResult) ->
+    fn emit_option(&mut self, f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         f(self)
@@ -173,13 +178,13 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
         self.emit_nil()
     }
 
-    fn emit_option_some(&mut self, f: |&mut Encoder<'a>| -> EncodeResult) ->
+    fn emit_option_some(&mut self, f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         f(self)
     }
 
-    fn emit_seq(&mut self, _len: uint, f: |this: &mut Encoder<'a>| ->
+    fn emit_seq(&mut self, _len: uint, f: |this: &mut Encoder| ->
                 EncodeResult) -> EncodeResult
     {
         unsafe { duk_push_array(self.ctx.as_mut_ptr()); }
@@ -187,14 +192,14 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_seq_elt(&mut self, idx: uint,
-                    f: |this: &mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                    f: |this: &mut Encoder| -> EncodeResult) -> EncodeResult
     {
         f(self).unwrap();
         unsafe { duk_put_prop_index(self.ctx.as_mut_ptr(), -2, idx as u32); }
         Ok(())
     }
 
-    fn emit_map(&mut self, _len: uint, f: |&mut Encoder<'a>| -> EncodeResult) ->
+    fn emit_map(&mut self, _len: uint, f: |&mut Encoder| -> EncodeResult) ->
         EncodeResult
     {
         unsafe { duk_push_object(self.ctx.as_mut_ptr()); }
@@ -202,7 +207,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_map_elt_key(&mut self, _idx: uint,
-                        f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                        f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         f(self).unwrap();
         unsafe { duk_safe_to_lstring(self.ctx.as_mut_ptr(), -1, null_mut()); }
@@ -210,7 +215,7 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
     }
 
     fn emit_map_elt_val(&mut self, _idx: uint,
-                        f: |&mut Encoder<'a>| -> EncodeResult) -> EncodeResult
+                        f: |&mut Encoder| -> EncodeResult) -> EncodeResult
     {
         f(self).unwrap();
         unsafe { duk_put_prop(self.ctx.as_mut_ptr(), -3); }
@@ -220,7 +225,6 @@ impl<'a> ::serialize::Encoder<DuktapeError> for Encoder<'a> {
 
 #[test]
 fn test_encoder() {
-    use std::borrow::Cow;
     use std::collections::HashMap;
     use types::Value;
 
@@ -237,7 +241,7 @@ function assert_json(expected, value) {
         "assert_json".with_c_str(|c_str| {
             duk_get_prop_string(ctx.as_mut_ptr(), -1, c_str);
         });
-        ctx.push(&Value::String(Cow::Borrowed(expected)));
+        ctx.push(&expected);
     }
 
     unsafe fn assert_json_call(ctx: &mut Context) ->
@@ -255,7 +259,7 @@ function assert_json(expected, value) {
                 let v = $val;
                 let expected = ::serialize::json::encode(&v);
                 assert_json_setup(&mut ctx, expected.as_slice());
-                ctx.push2(&v);
+                ctx.push(&v);
                 match assert_json_call(&mut ctx) {
                     Ok(Value::Bool(true)) => {},
                     Ok(Value::String(ref got)) =>

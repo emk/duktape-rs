@@ -63,6 +63,14 @@ impl Context {
         }
     }
 
+    /// Create a new duktape context by wrapping an existing mutable
+    /// pointer.  This is potentially unsafe, because it allows you to
+    /// create two Rust objects pointing to the same duktape interpreter!
+    /// So if you create a Context using this API
+    pub unsafe fn from_borrowed_mut_ptr(ptr: *mut duk_context) -> Context {
+        Context{ptr: ptr, owned: false}
+    }
+
     /// Get the underlying context pointer.  You generally don't need this
     /// unless you're implementing low-level add-ons to this library.
     pub unsafe fn as_mut_ptr(&mut self) -> *mut duk_context { self.ptr }
@@ -105,7 +113,7 @@ impl Context {
     }
 
     /// Push a value to the call stack.
-    pub unsafe fn push(&mut self, val: &Value) {
+    pub unsafe fn push_old(&mut self, val: &Value) {
         match val {
             &Value::Undefined => duk_push_undefined(self.ptr),
             &Value::Null => duk_push_null(self.ptr),
@@ -120,13 +128,12 @@ impl Context {
         }
     }
 
-    /// Push an encodable value onto the call stack.  This will replace
-    /// `push`.
-    pub unsafe fn push2<'a, T, E>(&'a mut self, object: &T)
-        where E: ::serialize::Encoder<DuktapeError>,
-              T: ::serialize::Encodable<Encoder<'a>, DuktapeError>
+    /// Push an encodable value onto the call stack.  We can push any data
+    /// type that implements Encodable.
+    pub unsafe fn push<T>(&mut self, object: &T)
+        where T: Encodable<Encoder, DuktapeError>
     {
-        let mut encoder = Encoder::new(self);
+        let mut encoder = Encoder::new(self.ptr);
         object.encode(&mut encoder).unwrap();
     }        
 
@@ -183,7 +190,8 @@ impl Context {
 
     /// Call the global JavaScript function named `fn_name` with `args`, and
     /// return the result.
-    pub fn call(&mut self, fn_name: &str, args: &[Value]) -> 
+    pub fn call(&mut self, fn_name: &str,
+                args: &[&Encodable<Encoder, DuktapeError>]) ->
         DuktapeResult<Value<'static>>
     {
         unsafe {
@@ -192,7 +200,12 @@ impl Context {
                 fn_name.with_c_str(|c_str| {
                     duk_get_prop_string(self.ptr, -1, c_str);
                 });
-                for arg in args.iter() { self.push(arg); }
+                {
+                    let mut encoder = Encoder::new(self.ptr);
+                    for arg in args.iter() {
+                        (*arg).encode(&mut encoder).unwrap();
+                    }
+                }
                 let status = duk_pcall(self.ptr, args.len() as i32);
                 let result = self.pop_result(status);
                 duk_pop(self.ptr); // Remove global object.
@@ -249,7 +262,7 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
     // invoke JavaScript code is to use a mutable context while calling
     // into C.  So this is really an indirect mutable borrow.
     assert!(ctx != null_mut());
-    let mut ctx = Context{ptr: ctx, owned: false};
+    let mut ctx = Context::from_borrowed_mut_ptr(ctx);
     //println!("In callback: {}", ctx.dump_context());
 
     // Recover our Rust function pointer.
@@ -286,7 +299,7 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
         // No return value.
         Ok(Value::Undefined) => { 0 }
         // A single return value.
-        Ok(ref val) => { ctx.push(val); 1 }
+        Ok(ref val) => { ctx.push_old(val); 1 }
         Err(ref err) => {
             let code = err_code(err) as duk_int_t;
             match err_message(err) {
@@ -338,7 +351,7 @@ fn test_unicode_supplementary_planes() {
 
     ctx.eval("function id(x) { return x; }").unwrap();
     assert_eq!(Ok(Value::String(Cow::Borrowed("𓀀"))),
-               ctx.call("id", &[Value::String(Cow::Borrowed("𓀀"))]));
+               ctx.call("id", &[&"𓀀"]));
 }
 
 #[test]
@@ -349,18 +362,19 @@ fn test_eval_errors() {
 
 #[test]
 fn test_call_function_by_name() {
+    use serialize::json::Json;
+
     let mut ctx = Context::new().unwrap();
     ctx.eval("function add(x, y) { return x+y; }").unwrap();
-    assert_eq!(Ok(Value::Number(3.0)),
-               ctx.call("add", &[Value::Number(2.0), Value::Number(1.0)]));
+    assert_eq!(Ok(Value::Number(3.0)), ctx.call("add", &[&2.0f64, &1.0f64]));
 
     ctx.eval("function id(x) { return x; }").unwrap();
-    assert_eq!(Ok(Value::Undefined),   ctx.call("id", &[Value::Undefined]));
-    assert_eq!(Ok(Value::Bool(true)),  ctx.call("id", &[Value::Bool(true)]));
-    assert_eq!(Ok(Value::Bool(false)), ctx.call("id", &[Value::Bool(false)]));
-    assert_eq!(Ok(Value::Number(1.5)), ctx.call("id", &[Value::Number(1.5)]));
+    assert_eq!(Ok(Value::Null),  ctx.call("id", &[&Json::Null]));
+    assert_eq!(Ok(Value::Bool(true)),  ctx.call("id", &[&true]));
+    assert_eq!(Ok(Value::Bool(false)), ctx.call("id", &[&false]));
+    assert_eq!(Ok(Value::Number(1.5)), ctx.call("id", &[&1.5f64]));
     assert_eq!(Ok(Value::String(Cow::Borrowed("é"))),
-               ctx.call("id", &[Value::String(Cow::Borrowed("é"))]));
+               ctx.call("id", &[&"é"]));
 }
 
 #[cfg(test)]

@@ -15,7 +15,7 @@
 //!     try!(ctx.eval("function add(x, y) { return x+y; }"));
 //!
 //!     // Call the function we defined.
-//!     ctx.call("add", &[Value::Number(2.0), Value::Number(1.0)])
+//!     ctx.call("add", &[&2.0f64, &1.0f64])
 //! }
 //!
 //! assert_eq!(Ok(Value::Number(3.0)), add_example());
