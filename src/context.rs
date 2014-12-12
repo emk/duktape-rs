@@ -8,7 +8,7 @@ use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
 use errors::*;
 use types::Value;
-use encoder::Encoder;
+use encoder::{Encoder, DuktapeEncodable};
 
 /// To avoid massive debugging frustration, wrap stack manipulation code in
 /// this macro.
@@ -130,9 +130,7 @@ impl Context {
 
     /// Push an encodable value onto the call stack.  We can push any data
     /// type that implements Encodable.
-    pub unsafe fn push<T>(&mut self, object: &T)
-        where T: Encodable<Encoder, DuktapeError>
-    {
+    pub unsafe fn push<T: DuktapeEncodable>(&mut self, object: &T) {
         let mut encoder = Encoder::new(self.ptr);
         object.encode(&mut encoder).unwrap();
     }        
@@ -190,8 +188,7 @@ impl Context {
 
     /// Call the global JavaScript function named `fn_name` with `args`, and
     /// return the result.
-    pub fn call(&mut self, fn_name: &str,
-                args: &[&Encodable<Encoder, DuktapeError>]) ->
+    pub fn call(&mut self, fn_name: &str, args: &[&DuktapeEncodable]) ->
         DuktapeResult<Value<'static>>
     {
         unsafe {

@@ -1,4 +1,5 @@
 use std::ptr::null_mut;
+use serialize::Encodable;
 use cesu8::to_cesu8;
 use ffi::*;
 use errors::*;
@@ -20,6 +21,10 @@ impl Encoder {
         Encoder{ctx: Context::from_borrowed_mut_ptr(ctx)}
     }
 }
+
+/// A value which can be encoded and passed to JavaScript code.
+pub trait DuktapeEncodable: Encodable<Encoder, DuktapeError> {}
+impl<T: Encodable<Encoder, DuktapeError>> DuktapeEncodable for T {}
 
 type EncodeResult = DuktapeResult<()>;
 
@@ -236,36 +241,23 @@ function assert_json(expected, value) {
     return JSON.stringify(JSON.parse(expected)) == value_json || value_json;
 }").unwrap();
 
-    unsafe fn assert_json_setup(ctx: &mut Context, expected: &str) {
-        duk_push_global_object(ctx.as_mut_ptr());
-        "assert_json".with_c_str(|c_str| {
-            duk_get_prop_string(ctx.as_mut_ptr(), -1, c_str);
-        });
-        ctx.push(&expected);
-    }
-
-    unsafe fn assert_json_call(ctx: &mut Context) ->
-        DuktapeResult<Value<'static>>
+    fn assert_json<T: DuktapeEncodable>(
+        ctx: &mut Context, expected: &str, value: &T)
     {
-        let status = duk_pcall(ctx.as_mut_ptr(), 2i32);
-        let result = ctx.pop_result(status);
-        duk_pop(ctx.as_mut_ptr()); // Remove global object.
-        result
+        match ctx.call("assert_json", &[&expected, value]) {
+            Ok(Value::Bool(true)) => {},
+            Ok(Value::String(ref got)) =>
+                panic!("expected {}, got {}", expected, got),
+            ref result => panic!("unexpected value: {}", result)
+        }
     }
 
     macro_rules! assert_encode {
         ($val:expr) => {
-            unsafe {
+            {
                 let v = $val;
                 let expected = ::serialize::json::encode(&v);
-                assert_json_setup(&mut ctx, expected.as_slice());
-                ctx.push(&v);
-                match assert_json_call(&mut ctx) {
-                    Ok(Value::Bool(true)) => {},
-                    Ok(Value::String(ref got)) =>
-                        panic!("expected {}, got {}", expected, got),
-                    ref result => panic!("unexpected value: {}", result)
-                }
+                assert_json(&mut ctx, expected.as_slice(), &v);
             }
         }
     }
