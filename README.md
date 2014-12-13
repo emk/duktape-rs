@@ -11,8 +11,14 @@ this is minimally useful:
 
 - [x] Handle non-UTF-8 strings.
 - [x] Call JavaScript functions by name.
-- [ ] Define functions.
+- [x] Define functions.
   - [x] Call specified Rust functions from JavaScript.
   - [x] Return errors from Rust to JavaScript.
-  - [ ] Provide a nice type-checking helper for parameters.
-- [ ] Provide macro for passing parameters to function calls.
+- [ ] Convert to use `Encodable`/`Decodable` everywhere.
+  - [x] Convert parameters to use `Encodable`.
+  - [ ] Replace `Value` with `serialize::Json`.
+  - [ ] Convert return values to use `Decodable`.
+- [ ] Add nice macros.
+  - [ ] Provide macro for calling functions.
+  - [ ] Provide macro for defining functions.
+
