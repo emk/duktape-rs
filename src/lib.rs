@@ -46,4 +46,5 @@ pub use context::{Context, Callback};
 mod errors;
 mod types;
 mod encoder;
+mod decoder;
 mod context;

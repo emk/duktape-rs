@@ -24,7 +24,7 @@ macro_rules! assert_stack_height_unchanged {
 }
 
 /// Convert a duktape-format string into a Rust `String`.
-unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
+pub unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
     DuktapeResult<String>
 {
     let ptr = data as *const u8;
