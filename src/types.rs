@@ -1,9 +1,9 @@
 use libc::types::os::arch::c95::c_double;
-use std::str::CowString;
+use std::string::CowString;
 
 /// A value that can be passed to and from JavaScript.  This does not
 /// include all the types that can be stored internally!
-#[deriving(Show, PartialEq)]
+#[derive(Show, PartialEq)]
 pub enum Value<'a> {
     /// An undefined JavaScript value.
     Undefined,

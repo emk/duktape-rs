@@ -1,9 +1,10 @@
 use std::borrow::Cow;
+use std::ffi::CString;
 use std::mem::transmute;
+use std::ops::Deref;
 use std::ptr::null_mut;
 use std::slice::from_raw_buf;
 use libc::c_void;
-use serialize::Encodable;
 use cesu8::{to_cesu8, from_cesu8};
 use ffi::*;
 use errors::*;
@@ -28,7 +29,7 @@ pub unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
     DuktapeResult<String>
 {
     let ptr = data as *const u8;
-    let bytes = from_raw_buf(&ptr, len as uint);
+    let bytes = from_raw_buf(&ptr, len as usize);
     match from_cesu8(bytes) {
         Ok(str) => Ok(str.into_owned()),
         Err(_) => Err(DuktapeError::from_str("can't convert string to UTF-8"))
@@ -37,7 +38,7 @@ pub unsafe fn from_lstring(data: *const i8, len: duk_size_t) ->
 
 /// A "internal" property key used for storing Rust function pointers, which
 /// can't be accessed from JavaScript without a lot of trickery.
-const RUST_FN_PROP: [i8, ..5] = [-1, 'r' as i8, 'f' as i8, 'n' as i8, 0];
+const RUST_FN_PROP: [i8; 5] = [-1, 'r' as i8, 'f' as i8, 'n' as i8, 0];
 
 /// A Rust callback which can be invoked from JavaScript.
 pub type Callback = fn (&mut Context, &[Value<'static>]) ->
@@ -132,7 +133,7 @@ impl Context {
     /// type that implements Encodable.
     pub unsafe fn push<T: DuktapeEncodable>(&mut self, object: &T) {
         let mut encoder = Encoder::new(self.ptr);
-        object.encode(&mut encoder).unwrap();
+        object.duktape_encode(&mut encoder).unwrap();
     }        
 
     /// Interpret the value on the top of the stack as either a return
@@ -194,13 +195,12 @@ impl Context {
         unsafe {
             assert_stack_height_unchanged!(self, {
                 duk_push_global_object(self.ptr);
-                fn_name.with_c_str(|c_str| {
-                    duk_get_prop_string(self.ptr, -1, c_str);
-                });
+                let c_str = CString::from_slice(fn_name.as_bytes());
+                duk_get_prop_string(self.ptr, -1, c_str.as_ptr());
                 {
                     let mut encoder = Encoder::new(self.ptr);
                     for arg in args.iter() {
-                        (*arg).encode(&mut encoder).unwrap();
+                        (*arg).duktape_encode(&mut encoder).unwrap();
                     }
                 }
                 let status = duk_pcall(self.ptr, args.len() as i32);
@@ -230,9 +230,8 @@ impl Context {
                 duk_put_prop_string(self.ptr, -2, RUST_FN_PROP.as_ptr());
 
                 // Store our function in a global property.
-                fn_name.with_c_str(|c_str| {
-                    duk_put_prop_string(self.ptr, -2, c_str);
-                });
+                let c_str = CString::from_slice(fn_name.as_bytes());
+                duk_put_prop_string(self.ptr, -2, c_str.as_ptr());
                 duk_pop(self.ptr);
             })
         }
@@ -273,7 +272,7 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
     });
 
     // Coerce our arguments to Rust values.
-    let arg_count = duk_get_top(ctx.ptr) as uint;
+    let arg_count = duk_get_top(ctx.ptr) as usize;
     let mut args = Vec::with_capacity(arg_count);
     for i in range(0, arg_count) {
         match ctx.get(i as duk_idx_t) {
@@ -359,7 +358,7 @@ fn test_eval_errors() {
 
 #[test]
 fn test_call_function_by_name() {
-    use serialize::json::Json;
+    use rustc_serialize::json::Json;
 
     let mut ctx = Context::new().unwrap();
     ctx.eval("function add(x, y) { return x+y; }").unwrap();

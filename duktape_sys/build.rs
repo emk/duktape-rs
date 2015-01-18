@@ -1,3 +1,5 @@
+#![allow(unstable)]
+
 extern crate gcc;
 
 use std::default::Default;

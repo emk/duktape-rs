@@ -1,4 +1,5 @@
-use serialize::Decodable;
+use std::iter::Iterator;
+use rustc_serialize::Decodable;
 use ffi::*;
 use errors::*;
 use context::{Context, from_lstring};
@@ -23,13 +24,13 @@ impl Decoder {
 }
 
 /// A value which can be encoded and passed to JavaScript code.
-pub trait DuktapeDecodable: Decodable<Decoder, DuktapeError> {}
-impl<T: Decodable<Decoder, DuktapeError>> DuktapeDecodable for T {}
+pub trait DuktapeDecodable: Decodable {}
+impl<T: Decodable> DuktapeDecodable for T {}
 
 macro_rules! read_and_convert {
-    ($name:ident -> $ty:ident, $reader:ident) => {
+    ($name:ident -> $ty:ident, $reader:ident -> $in_ty:ident) => {
         fn $name(&mut self) -> DuktapeResult<$ty> {
-            self.$reader().map(|v| v as $ty)
+            self.$reader().map(|: v: $in_ty| v as $ty)
         }
     }
 }
@@ -54,28 +55,33 @@ macro_rules! read_with {
 }
 
 #[allow(unused_variables)]
-impl ::serialize::Decoder<DuktapeError> for Decoder {
-    fn read_nil(&mut self) -> DuktapeResult<()> { unimplemented!() }
+impl ::rustc_serialize::Decoder for Decoder {
+    type Error = DuktapeError;
 
-    read_and_convert!(read_uint -> uint, read_f64)
-    read_and_convert!(read_u64  -> u64,  read_f64)
-    read_and_convert!(read_u32  -> u32,  read_f64)
-    read_and_convert!(read_u16  -> u16,  read_f64)
-    read_and_convert!(read_u8   -> u8,   read_f64)
-    read_and_convert!(read_int  -> int,  read_f64)
-    read_and_convert!(read_i64  -> i64,  read_f64)
-    read_and_convert!(read_i32  -> i32,  read_f64)
-    read_and_convert!(read_i16  -> i16,  read_f64)
-    read_and_convert!(read_i8   -> i8,   read_f64)
+    fn read_nil(&mut self) -> DuktapeResult<()> 
+    {
+        unimplemented!()
+    }
+
+    read_and_convert!(read_usize-> usize,read_f64 -> f64);
+    read_and_convert!(read_u64  -> u64,  read_f64 -> f64);
+    read_and_convert!(read_u32  -> u32,  read_f64 -> f64);
+    read_and_convert!(read_u16  -> u16,  read_f64 -> f64);
+    read_and_convert!(read_u8   -> u8,   read_f64 -> f64);
+    read_and_convert!(read_isize-> isize,read_f64 -> f64);
+    read_and_convert!(read_i64  -> i64,  read_f64 -> f64);
+    read_and_convert!(read_i32  -> i32,  read_f64 -> f64);
+    read_and_convert!(read_i16  -> i16,  read_f64 -> f64);
+    read_and_convert!(read_i8   -> i8,   read_f64 -> f64);
 
     read_with!(read_bool -> bool, duk_is_boolean, |self, idx| {
         Ok(duk_get_boolean(self.ctx.as_mut_ptr(), idx) != 0)
-    })
+    });
 
     read_with!(read_f64 -> f64, duk_is_number, |self, idx| {
         Ok(duk_get_number(self.ctx.as_mut_ptr(), idx))
-    })
-    read_and_convert!(read_f32 -> f32, read_f64)
+    });
+    read_and_convert!(read_f32 -> f32, read_f64 -> f64);
 
     fn read_char(&mut self) -> DuktapeResult<char> {
         fn err(msg: &str) -> DuktapeResult<char> {
@@ -104,67 +110,135 @@ impl ::serialize::Decoder<DuktapeError> for Decoder {
         let mut len = 0;
         let ptr = duk_get_lstring(self.ctx.as_mut_ptr(), idx, &mut len);
         from_lstring(ptr, len)
-    })
+    });
 
     // Compound types:
-    fn read_enum<T>(&mut self, name: &str,
-                    f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T>
+    fn read_enum<T,F>(&mut self, name: &str,
+                    f: F) -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
     {
         unimplemented!()
     }
 
-    fn read_enum_variant<T>(&mut self,
+    fn read_enum_variant<T,F>(&mut self,
                             names: &[&str],
-                            f: |&mut Decoder, uint| -> DuktapeResult<T>)
-                            -> DuktapeResult<T> { unimplemented!() }
-    fn read_enum_variant_arg<T>(&mut self,
-                                a_idx: uint,
-                                f: |&mut Decoder| -> DuktapeResult<T>)
-                                -> DuktapeResult<T> { unimplemented!() }
+                            f: F)
+                            -> DuktapeResult<T>
+        where F: FnMut(&mut Decoder, usize) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_enum_variant_arg<T,F>(&mut self,
+                                a_idx: usize,
+                                f: F)
+                                -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>        
+    {
+        unimplemented!()
+    }
 
-    fn read_enum_struct_variant<T>(&mut self,
+    fn read_enum_struct_variant<T,F>(&mut self,
                                    names: &[&str],
-                                   f: |&mut Decoder, uint| -> DuktapeResult<T>)
-                                   -> DuktapeResult<T> { unimplemented!() }
-    fn read_enum_struct_variant_field<T>(&mut self,
+                                   f: F)
+                                   -> DuktapeResult<T>
+        where F: FnMut(&mut Decoder, usize) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_enum_struct_variant_field<T,F>(&mut self,
                                          f_name: &str,
-                                         f_idx: uint,
-                                         f: |&mut Decoder| -> DuktapeResult<T>)
-                                         -> DuktapeResult<T> { unimplemented!() }
+                                         f_idx: usize,
+                                         f: F)
+                                         -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
-    fn read_struct<T>(&mut self, s_name: &str, len: uint, f: |&mut Decoder| -> DuktapeResult<T>)
-                      -> DuktapeResult<T> { unimplemented!() }
-    fn read_struct_field<T>(&mut self,
+    fn read_struct<T,F>(&mut self, s_name: &str, len: usize, f: F)
+                      -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_struct_field<T,F>(&mut self,
                             f_name: &str,
-                            f_idx: uint,
-                            f: |&mut Decoder| -> DuktapeResult<T>)
-                            -> DuktapeResult<T> { unimplemented!() }
+                            f_idx: usize,
+                            f: F)
+                            -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
-    fn read_tuple<T>(&mut self, len: uint, f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
-    fn read_tuple_arg<T>(&mut self, a_idx: uint, f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
+    fn read_tuple<T,F>(&mut self, len: usize, f: F) -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_tuple_arg<T,F>(&mut self, a_idx: usize, f: F) -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
-    fn read_tuple_struct<T>(&mut self,
+    fn read_tuple_struct<T,F>(&mut self,
                             s_name: &str,
-                            len: uint,
-                            f: |&mut Decoder| -> DuktapeResult<T>)
-                            -> DuktapeResult<T> { unimplemented!() }
-    fn read_tuple_struct_arg<T>(&mut self,
-                                a_idx: uint,
-                                f: |&mut Decoder| -> DuktapeResult<T>)
-                                -> DuktapeResult<T> { unimplemented!() }
+                            len: usize,
+                            f: F)
+                            -> DuktapeResult<T>
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_tuple_struct_arg<T,F>(&mut self,
+                                a_idx: usize,
+                                f: F)
+                                -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
     // Specialized types:
-    fn read_option<T>(&mut self, f: |&mut Decoder, bool| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
+    fn read_option<T,F>(&mut self, f: F) -> DuktapeResult<T> 
+        where F: FnMut(&mut Decoder, bool) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
-    fn read_seq<T>(&mut self, f: |&mut Decoder, uint| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
-    fn read_seq_elt<T>(&mut self, idx: uint, f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
+    fn read_seq<T,F>(&mut self, f: F) -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder, usize) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_seq_elt<T,F>(&mut self, idx: usize, f: F) -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
-    fn read_map<T>(&mut self, f: |&mut Decoder, uint| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
-    fn read_map_elt_key<T>(&mut self, idx: uint, f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
-    fn read_map_elt_val<T>(&mut self, idx: uint, f: |&mut Decoder| -> DuktapeResult<T>) -> DuktapeResult<T> { unimplemented!() }
+    fn read_map<T,F>(&mut self, f: F) -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder, usize) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_map_elt_key<T,F>(&mut self, idx: usize, f: F) -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
+    fn read_map_elt_val<T,F>(&mut self, idx: usize, f: F) -> DuktapeResult<T> 
+        where F: FnOnce(&mut Decoder) -> DuktapeResult<T>
+    {
+        unimplemented!()
+    }
 
     // Failure
-    fn error(&mut self, err: &str) -> DuktapeError { unimplemented!() }
+    fn error(&mut self, err: &str) -> DuktapeError 
+    {
+        unimplemented!()
+    }
 }
 
 #[test]
@@ -179,10 +253,10 @@ fn test_decoder() {
         where T: DuktapeEncodable + DuktapeDecodable + PartialEq + Show
     {
         let mut encoder = unsafe { Encoder::new(ctx.as_mut_ptr()) };
-        value.encode(&mut encoder).unwrap();
+        value.duktape_encode(&mut encoder).unwrap();
         let mut decoder = unsafe { Decoder::new(ctx.as_mut_ptr()) };
         let decoded: DuktapeResult<T> = Decodable::decode(&mut decoder);
-        println!("decoding {} {}", value, decoded);
+        println!("decoding {:?} {:?}", value, decoded);
         assert_eq!(value, &decoded.unwrap());
     }
 
@@ -194,12 +268,12 @@ fn test_decoder() {
     // suite.
 
     // Simple types.
-    assert_decode!(1u);
+    assert_decode!(1us);
     assert_decode!(1u64);
     assert_decode!(1u32);
     assert_decode!(1u16);
     assert_decode!(1u8);
-    assert_decode!(-1i);
+    assert_decode!(-1is);
     assert_decode!(-1i64);
     assert_decode!(-1i32);
     assert_decode!(-1i16);
@@ -214,22 +288,22 @@ fn test_decoder() {
     assert_decode!('𓀀');
 
     //// Enums.
-    //#[deriving(Encodable, Decodable, PartialEq, Show)]
+    //#[derive(RustcEncodable, Decodable, PartialEq, Show)]
     //enum ExEnum { Foo, Bar(f64), Baz{x: f64, y: f64} }
     //assert_decode!(ExEnum::Foo);
     //assert_decode!(ExEnum::Bar(1.0));
     //assert_decode!(ExEnum::Baz{x: 1.0, y: 2.0});
 
     //// Structs.
-    //#[deriving(Encodable, Decodable, PartialEq, Show)]
+    //#[derive(RustcEncodable, Decodable, PartialEq, Show)]
     //struct ExStruct { x: f64, y: f64 }
     //assert_decode!(ExStruct{x: 1.0, y: 2.0});
 
     //// Tuples.
-    //assert_decode!((1u, 2u));
+    //assert_decode!((1u, 2us));
 
     //// Tuple structs.
-    //#[deriving(Encodable, Decodable, PartialEq, Show)]
+    //#[derive(RustcEncodable, Decodable, PartialEq, Show)]
     //struct ExTupleStruct(f64);
     //assert_decode!(ExTupleStruct(1.0));
 

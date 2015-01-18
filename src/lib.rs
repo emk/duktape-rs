@@ -27,16 +27,14 @@
 //! [Duktape]: http://duktape.org/
 
 #![experimental]
-#![feature(globs)]
-#![feature(macro_rules)]
-#![feature(phase)]
 #![warn(missing_docs)]
+#![allow(unstable)]
 
-#[phase(plugin, link)] extern crate log;
-extern crate serialize;
+#[macro_use] extern crate log;
+extern crate "rustc-serialize" as rustc_serialize;
 extern crate libc;
 extern crate cesu8;
-#[phase(plugin, link)] extern crate abort_on_panic;
+#[macro_use] extern crate abort_on_panic;
 extern crate "duktape_sys" as ffi;
 
 pub use errors::{ErrorCode, DuktapeError, DuktapeResult};

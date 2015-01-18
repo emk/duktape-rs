@@ -8,9 +8,9 @@
 //! We do not yet provide replacements for duktape function macros, but
 //! pull requests are very welcome.
 
-#![feature(globs)]
 #![experimental]
 #![allow(non_camel_case_types)]
+#![allow(unstable)]
 
 extern crate libc;
 

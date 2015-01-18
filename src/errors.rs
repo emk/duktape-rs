@@ -5,7 +5,7 @@ use ffi::*;
 /// These are the standard error codes, which make it easy to return
 /// pre-defined errors from duktape functions implemented in Rust.
 #[allow(missing_docs)]
-#[deriving(Copy, Show, PartialEq, Eq)]
+#[derive(Copy, Show, PartialEq, Eq)]
 #[repr(i32)]
 pub enum ErrorCode {
     Unimplemented = DUK_ERR_UNIMPLEMENTED_ERROR,
@@ -27,7 +27,7 @@ pub enum ErrorCode {
 /// A duktape API error.  The is used as both the return type of duktape of
 /// functions, and also the return type of Rust functions called from
 /// duktape.
-#[deriving(Show, PartialEq, Eq)]
+#[derive(Show, PartialEq, Eq)]
 pub struct DuktapeError {
     /// The error code, if a specific one is available, or
     /// `ErrorCode::Error` if we have nothing better.
@@ -62,7 +62,7 @@ impl Error for DuktapeError {
         self.message.clone().or_else(|| {
             let msg = match self.code {
                 ErrorCode::Error => "an unknown error occurred".to_string(),
-                code => format!("type: {} code: {}", code, code as duk_int_t)
+                code => format!("type: {:?} code: {:?}", code, code as duk_int_t)
             };
             Some(msg)
         })
