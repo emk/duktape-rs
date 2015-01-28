@@ -220,8 +220,8 @@ impl ::rustc_serialize::Encoder for Encoder {
         f(self)
     }
 
-    fn emit_map_elt_key<F>(&mut self, _idx: usize, mut f: F) -> DuktapeResult<()>
-        where F: FnMut(&mut Encoder) -> DuktapeResult<()>
+    fn emit_map_elt_key<F>(&mut self, _idx: usize, f: F) -> DuktapeResult<()>
+        where F: FnOnce(&mut Encoder) -> DuktapeResult<()>
     {
         f(self).unwrap();
         unsafe { duk_safe_to_lstring(self.ctx.as_mut_ptr(), -1, null_mut()); }
@@ -256,7 +256,7 @@ function assert_json(expected, value) {
         match ctx.call("assert_json", &[&expected, value]) {
             Ok(Value::Bool(true)) => {},
             Ok(Value::String(ref got)) =>
-                panic!("expected {}, got {}", expected, got),
+                panic!("expected {:?}, got {:?}", expected, got),
             ref result => panic!("unexpected value: {:?}", result)
         }
     }
@@ -265,7 +265,7 @@ function assert_json(expected, value) {
         ($val:expr) => {
             {
                 let v = $val;
-                let expected = ::rustc_serialize::json::encode(&v);
+                let expected = ::rustc_serialize::json::encode(&v).unwrap();
                 assert_json(&mut ctx, expected.as_slice(), &v);
             }
         }

@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fmt;
 use std::result::Result;
 use ffi::*;
 
@@ -58,17 +59,18 @@ pub fn err_message(err: &DuktapeError) -> &Option<String> { &err.message }
 impl Error for DuktapeError {
     fn description(&self) -> &str { "script error:" }
 
-    fn detail(&self) -> Option<String> {
-        self.message.clone().or_else(|| {
-            let msg = match self.code {
-                ErrorCode::Error => "an unknown error occurred".to_string(),
-                code => format!("type: {:?} code: {:?}", code, code as duk_int_t)
-            };
-            Some(msg)
-        })
-    }
-
     fn cause(&self) -> Option<&Error> { None }
+}
+
+impl fmt::Display for DuktapeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (&self.message, self.code) {
+            (&Some(ref msg), _) => write!(f, "{}", msg),
+            (&None, ErrorCode::Error) => write!(f, "an unknown error occurred"),
+            (&None, code) => 
+                write!(f, "type: {:?} code: {:?}", code, code as duk_int_t)
+        }
+    }
 }
 
 /// Either a return value of type `T`, or a duktape error.

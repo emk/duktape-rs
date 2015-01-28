@@ -244,13 +244,13 @@ impl ::rustc_serialize::Decoder for Decoder {
 #[test]
 fn test_decoder() {
     //use std::collections::HashMap;
-    use std::fmt::Show;
+    use std::fmt::Debug;
     use encoder::{Encoder, DuktapeEncodable};
 
     let mut ctx = Context::new().unwrap();
 
     fn assert_decode<T>(ctx: &mut Context, value: &T)
-        where T: DuktapeEncodable + DuktapeDecodable + PartialEq + Show
+        where T: DuktapeEncodable + DuktapeDecodable + PartialEq + Debug
     {
         let mut encoder = unsafe { Encoder::new(ctx.as_mut_ptr()) };
         value.duktape_encode(&mut encoder).unwrap();
