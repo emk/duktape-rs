@@ -15,6 +15,7 @@ documentation = "http://www.rust-ci.org/emk/ducktape-rs/doc/ducktape/"
 cesu8 = "*"
 abort_on_panic = "*"
 rustc-serialize = "*"
+log = "*"
 
 [dependencies.duktape_sys]
 path = "duktape_sys"

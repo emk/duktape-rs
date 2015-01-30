@@ -147,7 +147,7 @@ impl Context {
             let mut len: duk_size_t = 0;
             let str = duk_safe_to_lstring(self.ptr, -1, &mut len);
             let msg = try!(from_lstring(str, len));
-            Err(DuktapeError::from_str(msg.as_slice()))
+            Err(DuktapeError::from_str(&msg[]))
         }
     }
 
@@ -287,7 +287,7 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
     // Call our function.
     let result =
         abort_on_panic!("unexpected panic in code called from JavaScript", {
-            f(&mut ctx, args.as_slice())  
+            f(&mut ctx, &args[])
         });
 
     // Return our result.
@@ -304,7 +304,7 @@ unsafe extern "C" fn rust_duk_callback(ctx: *mut duk_context) -> duk_ret_t {
                     // The following would more-or-less work, but it
                     // performs a non-local exit from a Rust function using
                     // C APIs, which is a Bad Idea.
-                    //to_cesu8(msg.as_slice()).with_c_str(|c_str| {
+                    //to_cesu8(&msg[]).with_c_str(|c_str| {
                     //    duk_push_error_object_string(ctx.ptr, code,
                     //                                 file!().as_ptr()
                     //                                     as *const i8,

@@ -26,9 +26,12 @@
 //!
 //! [Duktape]: http://duktape.org/
 
-#![experimental]
+#![feature(std_misc)]
+#![feature(collections)]
+#![feature(core)]
+#![feature(libc)]
+
 #![warn(missing_docs)]
-#![allow(unstable)]
 
 #[macro_use] extern crate log;
 extern crate "rustc-serialize" as rustc_serialize;

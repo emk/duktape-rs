@@ -1,4 +1,6 @@
-#![allow(unstable)]
+#![feature(os)]
+#![feature(path)]
+#![feature(collections)]
 
 extern crate gcc;
 
