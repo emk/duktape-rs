@@ -1,21 +1,15 @@
-#![feature(os)]
-#![feature(path)]
-#![feature(collections)]
-
 extern crate gcc;
 
-use std::default::Default;
-use std::os::{getenv, setenv};
+use std::path::Path;
+use std::env::{var, set_var};
 
 fn main() {
-    // Make sure we get a thread-safe build.  Without this, duktape refuses
-    // to set DUK_USE_VARIADIC_MACROS and falls back to global variables.
-    let mut cflags = getenv("CFLAGS").unwrap_or("".to_string());
+    let mut cflags = var("CFLAGS").unwrap_or("".to_string());
     cflags.push_str(" -std=c99");
-    setenv("CFLAGS", cflags);
+    set_var("CFLAGS", cflags);
 
-    gcc::compile_library("libduktape.a", &gcc::Config {
-        include_directories: vec!(Path::new("duktape/src")),
-        .. Default::default()
-    }, &["duktape/src/duktape.c", "src/glue.c"]);
+    &gcc::Config::new()
+      .file(Path::new("duktape/src/duktape.c")).file(Path::new("src/glue.c"))
+      .include("duktape/src")
+      .compile("libduktape.a");
 }
