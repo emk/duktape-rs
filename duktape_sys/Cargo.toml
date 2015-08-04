@@ -17,5 +17,8 @@ exclude = [
   "duktape/src-separate"
 ]
 
+[dependencies]
+libc = "0.1"
+
 [build-dependencies]
 gcc = "*"
