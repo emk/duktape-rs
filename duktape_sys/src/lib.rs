@@ -1,5 +1,5 @@
 //! EXPERIMENTAL: Low-level, unsafe wrapper arround the duktape API.
-//! 
+//!
 //! Note that some of this code is generated based on the specific
 //! compiler, operating system and processor, so various details may change
 //! depending on the system you're targeting.  Do not assume that constants
@@ -7,8 +7,6 @@
 //!
 //! We do not yet provide replacements for duktape function macros, but
 //! pull requests are very welcome.
-
-#![feature(libc)]
 
 #![allow(non_camel_case_types)]
 
